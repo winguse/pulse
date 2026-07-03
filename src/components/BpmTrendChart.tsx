@@ -35,7 +35,7 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     return () => resizeObserver.disconnect();
   }, []);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas || bpmValues.length === 0) return;
 
@@ -262,10 +262,10 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
       <div className="relative w-full">
         <canvas
           ref={canvasRef}
-          style={{ width: '100%', height: '128px', display: 'block', boxSizing: 'border-box' }}
+          style={{ width: '100%', height: '128px', display: 'block', boxSizing: 'border-box', touchAction: 'none' }}
           className="bpm-trend-canvas bg-slate-950/80 rounded border border-slate-950 cursor-crosshair"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          onPointerMove={handleMouseMove}
+          onPointerCancel={handleMouseLeave} onPointerLeave={handleMouseLeave}
         />
       </div>
     </div>
