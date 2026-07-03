@@ -74,7 +74,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   pulseParams,
 }) => {
   const mainCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const overviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragStartXRef = useRef<number>(0);
+  const dragStartScrollTimeRef = useRef<number>(0);
 
   // Viewport states
   const [zoom, setZoom] = useState(1); // 1x to 100x

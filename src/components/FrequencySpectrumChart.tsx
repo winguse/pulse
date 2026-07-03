@@ -321,7 +321,6 @@ export const FrequencySpectrumChart: React.FC<Props> = ({
     if (!spectrumData) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
 
     const freq = plotMinFreq + (x / rect.width) * (plotMaxFreq - plotMinFreq);
 
