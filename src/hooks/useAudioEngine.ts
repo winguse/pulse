@@ -22,8 +22,8 @@ export const DEFAULT_PULSE_PARAMS = {
   minBpm: 70,
   maxBpm: 220,
   mode: "peak" as "peak" | "frequency",
-  minFreq: 800,
-  maxFreq: 900,
+  minFreq: 90,
+  maxFreq: 110,
 };
 
 export type PulseParams = typeof DEFAULT_PULSE_PARAMS;
@@ -37,7 +37,9 @@ export function useAudioEngine() {
   const [duration, setDuration] = useState<number>(0);
   const [peaks, setPeaks] = useState<PulsePeak[]>([]);
   const [averageBpm, setAverageBpm] = useState<number>(0);
-  const [bpmValues, setBpmValues] = useState<{ time: number; bpm: number }[]>([]);
+  const [bpmValues, setBpmValues] = useState<{ time: number; bpm: number }[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>("");
@@ -78,7 +80,8 @@ export function useAudioEngine() {
   const initWebAudio = useCallback(() => {
     if (audioCtxRef.current) return;
 
-    const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtxClass =
+      window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtxClass || !audioRef.current) return;
 
     const ctx = new AudioCtxClass();
@@ -186,8 +189,8 @@ export function useAudioEngine() {
         minBpm: pulseParams.minBpm,
         maxBpm: pulseParams.maxBpm,
         mode: pulseParams.mode ?? "peak",
-        minFreq: pulseParams.minFreq ?? 800,
-        maxFreq: pulseParams.maxFreq ?? 900,
+        minFreq: pulseParams.minFreq ?? 20,
+        maxFreq: pulseParams.maxFreq ?? 120,
       },
       filteredAudio || undefined,
     );
@@ -220,8 +223,11 @@ export function useAudioEngine() {
     setError(null);
     try {
       setFileName(file.name);
-      const { audioData, sampleRate: sr, duration: dur } =
-        await extractAudioFromFile(file);
+      const {
+        audioData,
+        sampleRate: sr,
+        duration: dur,
+      } = await extractAudioFromFile(file);
       setSampleRate(sr);
       setDuration(dur);
       setOriginalAudio(audioData);

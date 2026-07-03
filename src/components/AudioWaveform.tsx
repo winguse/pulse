@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { PulsePeak } from '../dsp/PulseDetector';
+import type { PulseParams } from '../hooks/useAudioEngine';
+import { Minimap } from './Minimap';
 
 // Autocorrelation pitch detector to find dominant sound frequency
 const detectSpikeFrequency = (slice: Float32Array, sampleRate: number): number => {
@@ -49,9 +51,11 @@ interface AudioWaveformProps {
   currentTime: number;
   onSeek: (time: number) => void;
   onVisibleWindowChange?: (start: number, end: number) => void;
+  onSelectionChange?: (start: number | null, end: number | null) => void;
   averageBpm: number;
   isPlaying: boolean;
   yScale: number;
+  pulseParams: PulseParams;
 }
 
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
@@ -63,9 +67,11 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   currentTime,
   onSeek,
   onVisibleWindowChange,
+  onSelectionChange,
   averageBpm,
   isPlaying,
   yScale,
+  pulseParams,
 }) => {
   const mainCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -82,11 +88,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  // Dragging refs for high-performance overview timeline brushes
-  const dragModeRef = useRef<'left' | 'right' | 'pan' | 'none'>('none');
-  const dragStartXRef = useRef<number>(0);
-  const dragStartScrollTimeRef = useRef<number>(0);
-  const dragStartVisibleDurationRef = useRef<number>(0);
+  useEffect(() => {
+    if (onSelectionChange) {
+      if (selectionStart !== null && selectionEnd !== null) {
+        onSelectionChange(Math.min(selectionStart, selectionEnd), Math.max(selectionStart, selectionEnd));
+      } else {
+        onSelectionChange(null, null);
+      }
+    }
+  }, [selectionStart, selectionEnd, onSelectionChange]);
 
   const visibleDuration = useMemo(() => duration / zoom, [duration, zoom]);
 
@@ -226,6 +236,38 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       }
     }
     ctx.stroke();
+
+    // Draw Peak Threshold lines if mode is peak
+    if (pulseParams.mode === 'peak' || pulseParams.mode === undefined) {
+      let maxEnv = 0.0001;
+      for (let i = 0; i < envelope.length; i++) {
+        if (envelope[i] > maxEnv) maxEnv = envelope[i];
+      }
+
+      const minThresh = pulseParams.threshold * maxEnv;
+      const maxThresh = (pulseParams.maxThreshold ?? 1.0) * maxEnv;
+      
+      const drawThresholdLine = (val: number, label: string, color: string) => {
+        const scaledVal = Math.min(1.0, val * yScale);
+        const y = height - 25 - scaledVal * (height - 40);
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(label, 4, y - 4);
+      };
+      
+      drawThresholdLine(minThresh, `Min ${Math.round(pulseParams.threshold * 100)}%`, 'rgba(6, 182, 212, 0.8)'); // Cyan-ish
+      drawThresholdLine(maxThresh, `Max ${Math.round((pulseParams.maxThreshold ?? 1.0) * 100)}%`, 'rgba(239, 68, 68, 0.8)'); // Red-ish
+    }
 
     // Draw heartbeat peak markers
     peaks.forEach((peak) => {
@@ -395,132 +437,13 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       ctx.closePath();
       ctx.fill();
     }
-  }, [filteredAudio, envelope, sampleRate, duration, peaks, currentTime, zoom, scrollTime, visibleDuration, containerWidth, yScale, selectionStart, selectionEnd, averageBpm, isPlaying]);
-
-  // 2. Draw loop for Overview Minimap Canvas
-  useEffect(() => {
-    const canvas = overviewCanvasRef.current;
-    if (!canvas || filteredAudio.length === 0) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const width = containerWidth;
-    const height = 40; // Fixed height matching h-10 layout
-
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-
-    ctx.clearRect(0, 0, width, height);
-
-    // Draw full waveform outline simplified
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    const decimation = Math.max(1, Math.floor(filteredAudio.length / width));
-
-    for (let x = 0; x < width; x++) {
-      const idx = x * decimation;
-      if (idx >= filteredAudio.length) break;
-
-      const val = Math.max(-1.0, Math.min(1.0, filteredAudio[idx] * yScale));
-      const yMin = ((1 - Math.abs(val)) / 2) * height;
-      const yMax = ((1 + Math.abs(val)) / 2) * height;
-
-      ctx.moveTo(x, yMin);
-      ctx.lineTo(x, yMax);
-    }
-    ctx.stroke();
-
-    // Draw full envelope outline in background
-    ctx.strokeStyle = 'rgba(236, 72, 153, 0.4)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    let first = true;
-    for (let x = 0; x < width; x++) {
-      const idx = Math.floor((x / width) * envelope.length);
-      const val = Math.min(1.0, (envelope[idx] || 0) * yScale);
-      const y = height - val * height;
-
-      if (first) {
-        ctx.moveTo(x, y);
-        first = false;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-
-    // Draw zoomed viewport window overlay
-    const viewX = (scrollTime / duration) * width;
-    const viewW = (visibleDuration / duration) * width;
-
-    ctx.fillStyle = 'rgba(192, 132, 252, 0.2)'; // purple tint
-    ctx.strokeStyle = '#c084fc';
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(viewX, 0, viewW, height);
-    ctx.strokeRect(viewX, 0.5, viewW, height - 1);
-
-    // Draw left and right handle grips
-    ctx.fillStyle = '#c084fc';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    const gripH = 18;
-    const gripW = 6;
-    const gripY = (height - gripH) / 2;
-
-    // Left handle grip pill
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(viewX - gripW / 2, gripY, gripW, gripH, 2);
-    } else {
-      ctx.rect(viewX - gripW / 2, gripY, gripW, gripH);
-    }
-    ctx.fill();
-    ctx.stroke();
-
-    // Right handle grip pill
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(viewX + viewW - gripW / 2, gripY, gripW, gripH, 2);
-    } else {
-      ctx.rect(viewX + viewW - gripW / 2, gripY, gripW, gripH);
-    }
-    ctx.fill();
-    ctx.stroke();
-
-    // Draw playhead on minimap
-    const playX = (currentTime / duration) * width;
-    ctx.strokeStyle = '#f97316';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(playX, 0);
-    ctx.lineTo(playX, height);
-    ctx.stroke();
-
-    // Draw zoom window info directly on the minimap canvas (top-left)
-    const zoomStart = scrollTime;
-    const zoomEnd = scrollTime + visibleDuration;
-    const zoomDuration = visibleDuration;
-    const zoomText = `Zoom: ${zoomStart.toFixed(1)}s - ${zoomEnd.toFixed(1)}s (${zoomDuration.toFixed(1)}s)`;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-    ctx.font = 'bold 8px monospace';
-    const textW = ctx.measureText(zoomText).width + 8;
-    ctx.fillRect(4, 3, textW, 11);
-    
-    ctx.fillStyle = '#c084fc';
-    ctx.fillText(zoomText, 8, 11);
-    ctx.restore();
-  }, [filteredAudio, envelope, duration, currentTime, scrollTime, visibleDuration, containerWidth, yScale]);
+  }, [filteredAudio, envelope, sampleRate, duration, peaks, currentTime, zoom, scrollTime, visibleDuration, containerWidth, yScale, selectionStart, selectionEnd, averageBpm, isPlaying, pulseParams]);
 
   // Handle Main Waveform click / drag seek & pan & Shift-selection
-  const handleMainMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const handleMainPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
+    canvas.setPointerCapture(e.pointerId);
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -531,7 +454,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       setSelectionStart(timeAtX);
       setSelectionEnd(timeAtX);
       e.preventDefault();
-    } else if (e.button === 1) {
+    } else if (e.button === 1 || e.pointerType === 'touch') {
+      // Treat middle click OR touch as pan
       setIsPanning(true);
       dragStartXRef.current = e.clientX;
       dragStartScrollTimeRef.current = scrollTime;
@@ -545,7 +469,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     }
   };
 
-  const handleMainMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const handleMainPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
 
@@ -566,129 +490,43 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     }
   };
 
-  const handleMainMouseUp = () => {
+  const handleMainPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = mainCanvasRef.current;
+    if (canvas) canvas.releasePointerCapture(e.pointerId);
     setIsScrubbing(false);
     setIsPanning(false);
     setIsSelecting(false);
   };
 
-  // Zoom centered on cursor on Wheel event
-  const handleMainWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  // Zoom centered on cursor on Wheel event using a non-passive native listener
+  useEffect(() => {
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault(); // Prevent page scroll
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
 
-    // Time value under mouse before zoom
-    const timeAtMouse = scrollTime + (mouseX / rect.width) * visibleDuration;
+      const timeAtMouse = scrollTime + (mouseX / rect.width) * visibleDuration;
+      const zoomIntensity = 0.05;
+      const direction = e.deltaY < 0 ? 1 : -1;
+      const factor = 1 + direction * zoomIntensity;
+      const newZoom = Math.max(1, Math.min(100, zoom * factor));
 
-    // Calculate new zoom factor
-    const zoomIntensity = 0.05;
-    const direction = e.deltaY < 0 ? 1 : -1;
-    const factor = 1 + direction * zoomIntensity;
-    const newZoom = Math.max(1, Math.min(100, zoom * factor));
+      const newVisibleDuration = duration / newZoom;
+      const newScrollTime = Math.max(
+        0,
+        Math.min(timeAtMouse - (mouseX / rect.width) * newVisibleDuration, duration - newVisibleDuration)
+      );
 
-    const newVisibleDuration = duration / newZoom;
-    // Calculate new start time to keep mouse hovering over same time point
-    const newScrollTime = Math.max(
-      0,
-      Math.min(timeAtMouse - (mouseX / rect.width) * newVisibleDuration, duration - newVisibleDuration)
-    );
-
-    setZoom(newZoom);
-    setScrollTime(newScrollTime);
-  };
-
-  const handleOverviewMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = overviewCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    const viewX = (scrollTime / duration) * width;
-    const viewW = (visibleDuration / duration) * width;
-
-    // Check hit test on handles (left handle start, right handle end)
-    const handleTolerance = 8; // pixels
-    if (Math.abs(x - viewX) <= handleTolerance) {
-      dragModeRef.current = 'left';
-    } else if (Math.abs(x - (viewX + viewW)) <= handleTolerance) {
-      dragModeRef.current = 'right';
-    } else if (x > viewX && x < viewX + viewW) {
-      dragModeRef.current = 'pan';
-    } else {
-      // Clicked outside the viewport brush: center on click location and pan
-      const clickTime = (x / width) * duration;
-      const newScrollTime = Math.max(0, Math.min(clickTime - visibleDuration / 2, duration - visibleDuration));
+      setZoom(newZoom);
       setScrollTime(newScrollTime);
-      dragModeRef.current = 'pan';
-      
-      dragStartScrollTimeRef.current = newScrollTime;
-      dragStartXRef.current = e.clientX;
-      dragStartVisibleDurationRef.current = visibleDuration;
-      return;
-    }
+    };
 
-    dragStartXRef.current = e.clientX;
-    dragStartScrollTimeRef.current = scrollTime;
-    dragStartVisibleDurationRef.current = visibleDuration;
-    e.preventDefault();
-  };
-
-  const handleOverviewMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = overviewCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    if (dragModeRef.current === 'none') {
-      const viewX = (scrollTime / duration) * width;
-      const viewW = (visibleDuration / duration) * width;
-      const handleTolerance = 8;
-
-      if (Math.abs(x - viewX) <= handleTolerance || Math.abs(x - (viewX + viewW)) <= handleTolerance) {
-        canvas.style.cursor = 'ew-resize';
-      } else if (x > viewX && x < viewX + viewW) {
-        canvas.style.cursor = 'grab';
-      } else {
-        canvas.style.cursor = 'pointer';
-      }
-      return;
-    }
-
-    const dx = e.clientX - dragStartXRef.current;
-    const dt = (dx / width) * duration;
-
-    if (dragModeRef.current === 'pan') {
-      const newScrollTime = Math.max(0, Math.min(dragStartScrollTimeRef.current + dt, duration - visibleDuration));
-      setScrollTime(newScrollTime);
-    } else if (dragModeRef.current === 'left') {
-      const currentEndTime = dragStartScrollTimeRef.current + dragStartVisibleDurationRef.current;
-      const newStartTime = Math.max(0, Math.min(dragStartScrollTimeRef.current + dt, currentEndTime - 0.5));
-      const newVisibleDuration = currentEndTime - newStartTime;
-
-      setScrollTime(newStartTime);
-      setZoom(duration / newVisibleDuration);
-    } else if (dragModeRef.current === 'right') {
-      const currentStartTime = dragStartScrollTimeRef.current;
-      const newEndTime = Math.max(currentStartTime + 0.5, Math.min(currentStartTime + dragStartVisibleDurationRef.current + dt, duration));
-      const newVisibleDuration = newEndTime - currentStartTime;
-
-      setZoom(duration / newVisibleDuration);
-    }
-  };
-
-  const handleOverviewMouseUp = () => {
-    dragModeRef.current = 'none';
-    const canvas = overviewCanvasRef.current;
-    if (canvas) {
-      canvas.style.cursor = 'pointer';
-    }
-  };
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [scrollTime, visibleDuration, zoom, duration]);
 
   return (
     <div
@@ -701,26 +539,78 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           ref={mainCanvasRef}
           style={{ width: '100%', height: '384px', display: 'block', boxSizing: 'border-box', touchAction: 'none' }}
           className="waveform-timeline-canvas bg-slate-950/80 rounded cursor-crosshair border border-slate-950"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleMainMouseDown(e); }}
-          onPointerMove={handleMainMouseMove}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleMainMouseUp(); }}
-          onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleMainMouseUp(); }} onPointerLeave={handleMainMouseUp}
-          onWheel={handleMainWheel}
+          onPointerDown={handleMainPointerDown}
+          onPointerMove={handleMainPointerMove}
+          onPointerUp={handleMainPointerUp}
+          onPointerCancel={handleMainPointerUp}
         />
 
       </div>
 
       {/* Overview Minimap */}
       <div className="flex flex-col gap-1">
-        <canvas
-          ref={overviewCanvasRef}
-          style={{ width: '100%', height: '40px', display: 'block', boxSizing: 'border-box', touchAction: 'none' }}
-          className="waveform-overview-canvas bg-slate-950/50 rounded cursor-ew-resize border border-slate-950/80"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleOverviewMouseDown(e); }}
-          onPointerMove={handleOverviewMouseMove}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleOverviewMouseUp(); }}
-          onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleOverviewMouseUp(); }} onPointerLeave={handleOverviewMouseUp}
-        />
+        {filteredAudio.length > 0 && (
+          <Minimap
+            domainMin={0}
+            domainMax={duration}
+            viewMin={scrollTime}
+            viewMax={scrollTime + visibleDuration}
+            minViewSpan={0.5}
+            onViewChange={(newMin, newMax) => {
+              const newVisibleDuration = newMax - newMin;
+              setScrollTime(newMin);
+              setZoom(duration / newVisibleDuration);
+            }}
+            renderBackground={(ctx, width, height) => {
+              ctx.strokeStyle = 'rgba(168, 85, 247, 0.15)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              const decimation = Math.max(1, Math.floor(filteredAudio.length / width));
+
+              for (let x = 0; x < width; x++) {
+                const idx = x * decimation;
+                if (idx >= filteredAudio.length) break;
+
+                const val = Math.max(-1.0, Math.min(1.0, filteredAudio[idx] * yScale));
+                const yMin = ((1 - Math.abs(val)) / 2) * height;
+                const yMax = ((1 + Math.abs(val)) / 2) * height;
+
+                ctx.moveTo(x, yMin);
+                ctx.lineTo(x, yMax);
+              }
+              ctx.stroke();
+
+              ctx.strokeStyle = 'rgba(236, 72, 153, 0.4)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              let first = true;
+              for (let x = 0; x < width; x++) {
+                const idx = Math.floor((x / width) * envelope.length);
+                const val = Math.min(1.0, (envelope[idx] || 0) * yScale);
+                const y = height - val * height;
+
+                if (first) {
+                  ctx.moveTo(x, y);
+                  first = false;
+                } else {
+                  ctx.lineTo(x, y);
+                }
+              }
+              ctx.stroke();
+            }}
+            renderOverlay={(ctx, width, height) => {
+              const playX = (currentTime / duration) * width;
+              ctx.strokeStyle = '#f97316';
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(playX, 0);
+              ctx.lineTo(playX, height);
+              ctx.stroke();
+            }}
+            overlayText={`Zoom: ${scrollTime.toFixed(1)}s - ${(scrollTime + visibleDuration).toFixed(1)}s (${visibleDuration.toFixed(1)}s)`}
+            height={40}
+          />
+        )}
       </div>
 
 

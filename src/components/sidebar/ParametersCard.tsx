@@ -249,38 +249,11 @@ function DetectorTab({ pulseParams, onChange }: DetectorTabProps) {
 
       {mode === "peak" ? (
         <>
-          <div className="param-group">
-            <label>
-              <span>Peak Sensitivity (Threshold)</span>
-              <span className="param-value">{Math.round(pulseParams.threshold * 100)}%</span>
-            </label>
-            <input
-              type="range" min="0.05" max="0.80" step="0.01"
-              value={pulseParams.threshold}
-              onChange={(e) => onChange((prev) => ({ ...prev, threshold: parseFloat(e.target.value) }))}
-            />
-            <span className="param-desc">Relative height required to register a pulse spike.</span>
-          </div>
-
-          <div className="param-group">
-            <label>
-              <span>Spike Noise Filter (Max Cutoff)</span>
-              <span className="param-value">{Math.round((pulseParams.maxThreshold ?? 1.0) * 100)}%</span>
-            </label>
-            <input
-              type="range" min="0.10" max="1.00" step="0.01"
-              value={pulseParams.maxThreshold ?? 1.0}
-              onChange={(e) => onChange((prev) => ({ ...prev, maxThreshold: parseFloat(e.target.value) }))}
-            />
-            <span className="param-desc">Filters out loud noise spikes louder than this threshold.</span>
-          </div>
-        </>
-      ) : (
         <div className="param-group">
           <label>
-            <span>Detection Frequency Range</span>
+            <span>Peak Detection Range</span>
             <span className="param-value">
-              {pulseParams.minFreq ?? 800} Hz – {pulseParams.maxFreq ?? 900} Hz
+              {Math.round(pulseParams.threshold * 100)}% – {Math.round((pulseParams.maxThreshold ?? 1.0) * 100)}%
             </span>
           </label>
           <div className="double-slider-wrapper">
@@ -288,24 +261,63 @@ function DetectorTab({ pulseParams, onChange }: DetectorTabProps) {
             <div
               className="double-slider-range"
               style={{
-                left: `${(((pulseParams.minFreq ?? 800) - 10) / 1990) * 100}%`,
-                width: `${(((pulseParams.maxFreq ?? 900) - (pulseParams.minFreq ?? 800)) / 1990) * 100}%`,
+                left: `${((pulseParams.threshold - 0.05) / 0.95) * 100}%`,
+                width: `${(((pulseParams.maxThreshold ?? 1.0) - pulseParams.threshold) / 0.95) * 100}%`,
               }}
             />
             <input
-              type="range" min="10" max="2000"
-              value={pulseParams.minFreq ?? 800}
+              type="range" min="0.05" max="1.00" step="0.01"
+              value={pulseParams.threshold}
               onChange={(e) => {
-                const val = Math.min((pulseParams.maxFreq ?? 900) - 5, parseInt(e.target.value) || 10);
+                const val = Math.min((pulseParams.maxThreshold ?? 1.0) - 0.01, parseFloat(e.target.value) || 0.05);
+                onChange((prev) => ({ ...prev, threshold: val }));
+              }}
+              className="double-slider-input"
+            />
+            <input
+              type="range" min="0.05" max="1.00" step="0.01"
+              value={pulseParams.maxThreshold ?? 1.0}
+              onChange={(e) => {
+                const val = Math.max(pulseParams.threshold + 0.01, parseFloat(e.target.value) || 1.0);
+                onChange((prev) => ({ ...prev, maxThreshold: val }));
+              }}
+              className="double-slider-input"
+            />
+          </div>
+          <span className="param-desc">Filters out spikes below the minimum or above the maximum relative height.</span>
+        </div>
+        </>
+      ) : (
+        <div className="param-group">
+          <label>
+            <span>Detection Frequency Range</span>
+            <span className="param-value">
+              {pulseParams.minFreq ?? 20} Hz – {pulseParams.maxFreq ?? 300} Hz
+            </span>
+          </label>
+          <div className="double-slider-wrapper">
+            <div className="double-slider-track" />
+            <div
+              className="double-slider-range"
+              style={{
+                left: `${(((pulseParams.minFreq ?? 20) - 20) / 280) * 100}%`,
+                width: `${(((pulseParams.maxFreq ?? 300) - (pulseParams.minFreq ?? 20)) / 280) * 100}%`,
+              }}
+            />
+            <input
+              type="range" min="20" max="300"
+              value={pulseParams.minFreq ?? 20}
+              onChange={(e) => {
+                const val = Math.min((pulseParams.maxFreq ?? 300) - 5, parseInt(e.target.value) || 20);
                 onChange((prev) => ({ ...prev, minFreq: val }));
               }}
               className="double-slider-input"
             />
             <input
-              type="range" min="10" max="2000"
-              value={pulseParams.maxFreq ?? 900}
+              type="range" min="20" max="300"
+              value={pulseParams.maxFreq ?? 300}
               onChange={(e) => {
-                const val = Math.max((pulseParams.minFreq ?? 800) + 5, parseInt(e.target.value) || 2000);
+                const val = Math.max((pulseParams.minFreq ?? 20) + 5, parseInt(e.target.value) || 300);
                 onChange((prev) => ({ ...prev, maxFreq: val }));
               }}
               className="double-slider-input"

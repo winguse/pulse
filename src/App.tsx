@@ -1,7 +1,8 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Info, ChevronLeft, ChevronRight, Heart, Sparkles } from "lucide-react";
 import { AudioWaveform } from "./components/AudioWaveform";
 import { BpmTrendChart } from "./components/BpmTrendChart";
+import { FrequencySpectrumChart } from "./components/FrequencySpectrumChart";
 import { UploadCard } from "./components/sidebar/UploadCard";
 import { ParametersCard } from "./components/sidebar/ParametersCard";
 import { SessionsCard } from "./components/sidebar/SessionsCard";
@@ -24,6 +25,9 @@ import "./App.css";
 function App() {
   // ── Core audio engine (DSP + detection) ───────────────────────────────────
   const engine = useAudioEngine();
+  const [selectionBounds, setSelectionBounds] = useState<
+    [number, number] | null
+  >(null);
 
   // ── Playback controls ─────────────────────────────────────────────────────
   const playback = usePlayback({
@@ -49,10 +53,17 @@ function App() {
   }, []);
 
   // ── Sidebar resize ────────────────────────────────────────────────────────
-  const { sidebarVisible, setSidebarVisible, sidebarWidth, handleResizeMouseDown } = useSidebar();
+  const {
+    sidebarVisible,
+    setSidebarVisible,
+    sidebarWidth,
+    handleResizeMouseDown,
+  } = useSidebar();
 
   // ── Drag and drop ─────────────────────────────────────────────────────────
-  const { dragActive, handleDrag, handleDrop, handleFileInput } = useFileDrop(engine.processUploadedFile);
+  const { dragActive, handleDrag, handleDrop, handleFileInput } = useFileDrop(
+    engine.processUploadedFile,
+  );
 
   // ── Preset wiring ─────────────────────────────────────────────────────────
   const handleSavePresetConfirm = () => {
@@ -74,11 +85,15 @@ function App() {
     presetsHook.handleOverwritePreset(engine.dspParams, engine.pulseParams);
   };
 
-  const isChanged = presetsHook.isParametersChanged(engine.dspParams, engine.pulseParams);
+  const isChanged = presetsHook.isParametersChanged(
+    engine.dspParams,
+    engine.pulseParams,
+  );
 
   // ── Session wiring ────────────────────────────────────────────────────────
   const handleSaveSession = async () => {
-    if (!engine.originalAudio || !engine.filteredAudio || !engine.envelope) return;
+    if (!engine.originalAudio || !engine.filteredAudio || !engine.envelope)
+      return;
     await sessions.handleSaveSession({
       fileName: engine.fileName,
       sampleRate: engine.sampleRate,
@@ -107,7 +122,9 @@ function App() {
           playback.setIsPlaying(false);
           // We can't call private setters; instead reload via processUploadedFile or re-init.
           // For now, use alert-then-reflect approach via a workaround:
-          alert(`Session "${data.name}" loaded. Re-upload the file to continue analysis, or use the waveform if filteredAudio matches.`);
+          alert(
+            `Session "${data.name}" loaded. Re-upload the file to continue analysis, or use the waveform if filteredAudio matches.`,
+          );
         },
         (msg) => engine.setError(msg),
       );
@@ -129,7 +146,12 @@ function App() {
 
   const triggerWaveformCSV = () => {
     if (!engine.filteredAudio || !engine.envelope) return;
-    exportWaveformDataToCSV(engine.filteredAudio, engine.envelope, engine.sampleRate, engine.fileName);
+    exportWaveformDataToCSV(
+      engine.filteredAudio,
+      engine.envelope,
+      engine.sampleRate,
+      engine.fileName,
+    );
   };
 
   const triggerCleanAudioWav = () => {
@@ -138,7 +160,9 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const baseName = engine.fileName.substring(0, engine.fileName.lastIndexOf(".")) || engine.fileName;
+    const baseName =
+      engine.fileName.substring(0, engine.fileName.lastIndexOf(".")) ||
+      engine.fileName;
     a.download = `${baseName}_cleaned.wav`;
     document.body.appendChild(a);
     a.click();
@@ -151,6 +175,13 @@ function App() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="app-container">
+      {/* Global loading progress bar at the top edge */}
+      {engine.isLoading && (
+        <div className="global-progress-bar-container">
+          <div className="global-progress-bar"></div>
+        </div>
+      )}
+
       {/* Hidden audio element */}
       <audio
         ref={engine.audioRef}
@@ -227,7 +258,20 @@ function App() {
             onDelete={handleDeleteSession}
           />
 
-          <div className="sidebar-resize-handle" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleResizeMouseDown(e); }} onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); }} onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); }} style={{ touchAction: "none" }} />
+          <div
+            className="sidebar-resize-handle"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              handleResizeMouseDown(e);
+            }}
+            onPointerUp={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
+            onPointerCancel={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
+            style={{ touchAction: "none" }}
+          />
         </section>
 
         {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}
@@ -239,9 +283,15 @@ function App() {
                 {engine.isLoading && (
                   <div
                     className="panel-header"
-                    style={{ borderBottom: "none", paddingBottom: 0, marginBottom: 8 }}
+                    style={{
+                      borderBottom: "none",
+                      paddingBottom: 0,
+                      marginBottom: 8,
+                    }}
                   >
-                    <span className="loader-inline">Running signal filters...</span>
+                    <span className="loader-inline">
+                      Running signal filters...
+                    </span>
                   </div>
                 )}
 
@@ -258,9 +308,17 @@ function App() {
                       playback.setVisibleStart(start);
                       playback.setVisibleEnd(end);
                     }}
+                    onSelectionChange={(start, end) => {
+                      if (start !== null && end !== null) {
+                        setSelectionBounds([start, end]);
+                      } else {
+                        setSelectionBounds(null);
+                      }
+                    }}
                     averageBpm={engine.averageBpm}
                     isPlaying={playback.isPlaying}
                     yScale={engine.yScale}
+                    pulseParams={engine.pulseParams}
                   />
                 )}
 
@@ -287,6 +345,18 @@ function App() {
                 onSeek={playback.handleSeek}
               />
 
+              {/* Frequency Spectrum */}
+              <FrequencySpectrumChart
+                audioData={engine.filteredAudio}
+                sampleRate={engine.sampleRate}
+                startTime={
+                  selectionBounds ? selectionBounds[0] : playback.visibleStart
+                }
+                endTime={
+                  selectionBounds ? selectionBounds[1] : playback.visibleEnd
+                }
+              />
+
               {/* Save / Export */}
               <ExportCard
                 hasData={hasData}
@@ -299,13 +369,19 @@ function App() {
             </div>
           ) : (
             <div className="dashboard-welcome shadow-neon">
-              <Heart className="welcome-spark" style={{ color: "var(--accent-pink)" }} />
-              <Sparkles className="welcome-spark" style={{ opacity: 0.4, width: 20, height: 20 }} />
+              <Heart
+                className="welcome-spark"
+                style={{ color: "var(--accent-pink)" }}
+              />
+              <Sparkles
+                className="welcome-spark"
+                style={{ opacity: 0.4, width: 20, height: 20 }}
+              />
               <h3>No Audio Session Loaded</h3>
               <p>
-                Drag &amp; drop an MP4 video or audio file onto the left dropzone to begin.
-                The client-side signal processing chain will filter and analyze the pulse
-                signal directly in your browser.
+                Drag &amp; drop an MP4 video or audio file onto the left
+                dropzone to begin. The client-side signal processing chain will
+                filter and analyze the pulse signal directly in your browser.
               </p>
             </div>
           )}
