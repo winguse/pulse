@@ -1,4 +1,4 @@
-export interface AudioSession {
+interface AudioSession {
   id?: number;
   name: string;
   timestamp: number;

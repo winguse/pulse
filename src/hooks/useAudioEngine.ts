@@ -3,7 +3,6 @@ import { processAudioWithWasm } from "../dsp/dspWrapper";
 import type { DSPParams } from "../dsp/dspWrapper";
 import { detectPulses } from "../dsp/PulseDetector";
 import type { PulsePeak } from "../dsp/PulseDetector";
-import type { AudioSession } from "../utils/db";
 import { extractAudioFromFile } from "../utils/audioExtractor";
 import { float32ToWav } from "../utils/wavExporter";
 
@@ -29,39 +28,7 @@ export const DEFAULT_PULSE_PARAMS = {
 
 export type PulseParams = typeof DEFAULT_PULSE_PARAMS;
 
-export interface AudioEngineState {
-  fileName: string;
-  originalAudio: Float32Array | null;
-  filteredAudio: Float32Array | null;
-  envelope: Float32Array | null;
-  sampleRate: number;
-  duration: number;
-  peaks: PulsePeak[];
-  averageBpm: number;
-  bpmValues: { time: number; bpm: number }[];
-  isLoading: boolean;
-  error: string | null;
-  audioUrl: string;
-  yScale: number;
-  dspParams: DSPParams;
-  pulseParams: PulseParams;
-}
-
-export interface AudioEngineActions {
-  setDspParams: React.Dispatch<React.SetStateAction<DSPParams>>;
-  setPulseParams: React.Dispatch<React.SetStateAction<PulseParams>>;
-  setError: (error: string | null) => void;
-  processUploadedFile: (file: File) => Promise<void>;
-  /** Restore all audio engine state from a saved IndexedDB session */
-  loadFromSession: (sess: AudioSession) => void;
-  setYScale: React.Dispatch<React.SetStateAction<number>>;
-  audioRef: React.RefObject<HTMLAudioElement | null>;
-  audioCtxRef: React.RefObject<AudioContext | null>;
-  gainNodeRef: React.RefObject<GainNode | null>;
-  initWebAudio: () => void;
-}
-
-export function useAudioEngine(): AudioEngineState & AudioEngineActions {
+export function useAudioEngine() {
   const [fileName, setFileName] = useState<string>("");
   const [originalAudio, setOriginalAudio] = useState<Float32Array | null>(null);
   const [filteredAudio, setFilteredAudio] = useState<Float32Array | null>(null);

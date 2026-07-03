@@ -5,29 +5,9 @@ import type { PulseParams } from "./useAudioEngine";
 
 const SYSTEM_PRESET_KEYS = ["Default Settings", "Weak Pulse", "High Heart Rate"];
 
-export type PresetMap = Record<string, { dsp: DSPParams; pulse: PulseParams }>;
+type PresetMap = Record<string, { dsp: DSPParams; pulse: PulseParams }>;
 
-export interface PresetsState {
-  presets: PresetMap;
-  selectedPresetKey: string;
-  newPresetName: string;
-  showSaveModal: boolean;
-  showSaveDropdown: boolean;
-  SYSTEM_PRESET_KEYS: string[];
-}
-
-export interface PresetsActions {
-  setNewPresetName: (name: string) => void;
-  setShowSaveModal: (show: boolean) => void;
-  setShowSaveDropdown: (show: boolean) => void;
-  handleSavePreset: () => void;
-  handleLoadPreset: (key: string, applyFn: (dsp: DSPParams, pulse: PulseParams) => void) => void;
-  handleDeletePreset: (key: string) => void;
-  handleOverwritePreset: (currentDsp: DSPParams, currentPulse: PulseParams) => void;
-  isParametersChanged: (currentDsp: DSPParams, currentPulse: PulseParams) => boolean;
-}
-
-export function usePresets(): PresetsState & PresetsActions {
+export function usePresets() {
   const [presets, setPresets] = useState<PresetMap>(() => {
     const saved = localStorage.getItem("pulse_presets");
     if (saved) return JSON.parse(saved);
@@ -117,5 +97,5 @@ export function usePresets(): PresetsState & PresetsActions {
     handleDeletePreset,
     handleOverwritePreset,
     isParametersChanged,
-  } as PresetsState & PresetsActions & { handleSavePresetWith: typeof handleSavePresetWith };
+  };
 }

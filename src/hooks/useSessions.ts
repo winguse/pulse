@@ -15,46 +15,19 @@ export interface SessionEntry {
   peaksCount: number;
 }
 
-export interface SessionsState {
-  sessions: SessionEntry[];
-}
-
-export interface SessionsActions {
-  loadSessionsList: () => Promise<void>;
-  handleSaveSession: (params: {
-    fileName: string;
-    sampleRate: number;
-    duration: number;
-    originalAudio: Float32Array;
-    filteredAudio: Float32Array;
-    envelope: Float32Array;
-    peaks: PulsePeak[];
-    averageBpm: number;
-  }) => Promise<void>;
-  handleLoadSession: (
-    id: number,
-    onLoad: (data: {
-      name: string;
-      sampleRate: number;
-      duration: number;
-      originalAudio: Float32Array;
-      filteredAudio: Float32Array;
-      envelope: Float32Array;
-      peaks: PulsePeak[];
-      averageBpm: number;
-    }) => void,
-    onError: (msg: string) => void,
-  ) => Promise<void>;
-  handleDeleteSession: (id: number, e: React.MouseEvent) => Promise<void>;
-}
-
-export function useSessions(): SessionsState & SessionsActions {
+export function useSessions() {
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
 
   const loadSessionsList = useCallback(async () => {
     try {
       const list = await getSessionsList();
-      setSessions(list);
+      setSessions(list.map(session => ({
+        id: session.id!,
+        name: session.name,
+        averageBpm: session.averageBpm,
+        duration: session.duration,
+        peaksCount: session.peaks.length
+      })));
     } catch (err: any) {
       console.error("Failed to load sessions list:", err);
     }

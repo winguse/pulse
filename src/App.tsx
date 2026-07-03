@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Info, ChevronLeft, ChevronRight, Heart, Sparkles } from "lucide-react";
 import { AudioWaveform } from "./components/AudioWaveform";
 import { BpmTrendChart } from "./components/BpmTrendChart";
@@ -12,6 +12,8 @@ import { useAudioEngine } from "./hooks/useAudioEngine";
 import { usePlayback } from "./hooks/usePlayback";
 import { usePresets } from "./hooks/usePresets";
 import { useSessions } from "./hooks/useSessions";
+import { useSidebar } from "./hooks/useSidebar";
+import { useFileDrop } from "./hooks/useFileDrop";
 import { float32ToWav } from "./utils/wavExporter";
 import {
   exportPeaksToCSV,
@@ -47,68 +49,10 @@ function App() {
   }, []);
 
   // ── Sidebar resize ────────────────────────────────────────────────────────
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem("pulse_sidebar_width");
-    return saved ? parseInt(saved, 10) : 320;
-  });
-  const isResizingRef = useRef(false);
-
-  useEffect(() => {
-    localStorage.setItem("pulse_sidebar_width", sidebarWidth.toString());
-  }, [sidebarWidth]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current) return;
-      setSidebarWidth(Math.max(260, Math.min(500, e.clientX)));
-    };
-    const handleMouseUp = () => {
-      if (isResizingRef.current) {
-        isResizingRef.current = false;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, []);
-
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
-    isResizingRef.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    e.preventDefault();
-  };
+  const { sidebarVisible, setSidebarVisible, sidebarWidth, handleResizeMouseDown } = useSidebar();
 
   // ── Drag and drop ─────────────────────────────────────────────────────────
-  const [dragActive, setDragActive] = useState(false);
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
-    else if (e.type === "dragleave") setDragActive(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files?.[0]) {
-      await engine.processUploadedFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      await engine.processUploadedFile(e.target.files[0]);
-    }
-  };
+  const { dragActive, handleDrag, handleDrop, handleFileInput } = useFileDrop(engine.processUploadedFile);
 
   // ── Preset wiring ─────────────────────────────────────────────────────────
   const handleSavePresetConfirm = () => {
@@ -120,7 +64,7 @@ function App() {
   };
 
   const handleLoadPreset = (key: string) => {
-    presetsHook.handleLoadPreset(key, (dsp, pulse) => {
+    presetsHook.handleLoadPreset(key, (dsp: any, pulse: any) => {
       engine.setDspParams(dsp);
       engine.setPulseParams(pulse);
     });
