@@ -152,6 +152,7 @@ body {
 
 /* Panel Card Base */
 .panel-card {
+    flex-shrink: 0;
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -280,8 +281,6 @@ body {
 /* Tabs Panel Card */
 .tabs-card {
     padding: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
 }
 
 .tab-headers {
