@@ -281,8 +281,6 @@ body {
 /* Tabs Panel Card */
 .tabs-card {
     padding: 0;
-    overflow-x: hidden;
-    overflow-y: visible;
 }
 
 .tab-headers {
