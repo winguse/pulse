@@ -518,7 +518,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   }, [filteredAudio, envelope, duration, currentTime, scrollTime, visibleDuration, containerWidth, yScale]);
 
   // Handle Main Waveform click / drag seek & pan & Shift-selection
-  const handleMainMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMainMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
 
@@ -545,7 +545,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     }
   };
 
-  const handleMainMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMainMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
 
@@ -601,7 +601,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     setScrollTime(newScrollTime);
   };
 
-  const handleOverviewMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleOverviewMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = overviewCanvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -638,7 +638,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     e.preventDefault();
   };
 
-  const handleOverviewMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleOverviewMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = overviewCanvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -699,12 +699,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       <div className="relative">
         <canvas
           ref={mainCanvasRef}
-          style={{ width: '100%', height: '384px', display: 'block', boxSizing: 'border-box' }}
+          style={{ width: '100%', height: '384px', display: 'block', boxSizing: 'border-box', touchAction: 'none' }}
           className="waveform-timeline-canvas bg-slate-950/80 rounded cursor-crosshair border border-slate-950"
-          onMouseDown={handleMainMouseDown}
-          onMouseMove={handleMainMouseMove}
-          onMouseUp={handleMainMouseUp}
-          onMouseLeave={handleMainMouseUp}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleMainMouseDown(e); }}
+          onPointerMove={handleMainMouseMove}
+          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleMainMouseUp(); }}
+          onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleMainMouseUp(); }} onPointerLeave={handleMainMouseUp}
           onWheel={handleMainWheel}
         />
 
@@ -714,12 +714,12 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       <div className="flex flex-col gap-1">
         <canvas
           ref={overviewCanvasRef}
-          style={{ width: '100%', height: '40px', display: 'block', boxSizing: 'border-box' }}
+          style={{ width: '100%', height: '40px', display: 'block', boxSizing: 'border-box', touchAction: 'none' }}
           className="waveform-overview-canvas bg-slate-950/50 rounded cursor-ew-resize border border-slate-950/80"
-          onMouseDown={handleOverviewMouseDown}
-          onMouseMove={handleOverviewMouseMove}
-          onMouseUp={handleOverviewMouseUp}
-          onMouseLeave={handleOverviewMouseUp}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleOverviewMouseDown(e); }}
+          onPointerMove={handleOverviewMouseMove}
+          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleOverviewMouseUp(); }}
+          onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); handleOverviewMouseUp(); }} onPointerLeave={handleOverviewMouseUp}
         />
       </div>
 

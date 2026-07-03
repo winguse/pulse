@@ -227,7 +227,7 @@ function App() {
             onDelete={handleDeleteSession}
           />
 
-          <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
+          <div className="sidebar-resize-handle" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handleResizeMouseDown(e); }} onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); }} onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); }} style={{ touchAction: "none" }} />
         </section>
 
         {/* ── MAIN CONTENT ─────────────────────────────────────────────── */}

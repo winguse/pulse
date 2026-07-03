@@ -13,7 +13,7 @@ export function useSidebar(initialWidth = 320) {
   }, [sidebarWidth]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: PointerEvent) => {
       if (!isResizingRef.current) return;
       setSidebarWidth(Math.max(260, Math.min(500, e.clientX)));
     };
@@ -24,15 +24,15 @@ export function useSidebar(initialWidth = 320) {
         document.body.style.userSelect = "";
       }
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("pointermove", handleMouseMove);
+    window.addEventListener("pointerup", handleMouseUp);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("pointermove", handleMouseMove);
+      window.removeEventListener("pointerup", handleMouseUp);
     };
   }, []);
 
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
+  const handleResizeMouseDown = (e: React.PointerEvent) => {
     isResizingRef.current = true;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
