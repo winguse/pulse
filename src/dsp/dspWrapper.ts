@@ -8,7 +8,7 @@ export interface DSPParams {
   agcDecay: number;
 }
 
-export interface DSPResult {
+interface DSPResult {
   filteredAudio: Float32Array;
   envelope: Float32Array;
 }
@@ -85,7 +85,7 @@ function notchCoeffs(freq: number, sr: number, q: number): BiquadCoeffs {
 // Main processing — synchronous, pure TypeScript (no WASM)
 // ---------------------------------------------------------------------------
 
-export function processAudio(
+function processAudio(
   inputAudio: Float32Array,
   sampleRate: number,
   params: DSPParams,

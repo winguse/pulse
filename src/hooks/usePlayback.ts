@@ -1,26 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-
-export interface PlaybackState {
-  currentTime: number;
-  isPlaying: boolean;
-  playbackSpeed: number;
-  volume: number;
-  visibleStart: number;
-  visibleEnd: number;
-}
-
-export interface PlaybackActions {
-  handlePlayPause: () => void;
-  handleSeek: (time: number) => void;
-  handleSpeedChange: (speed: number) => void;
-  handleVolumeChange: (vol: number) => void;
-  setVisibleStart: React.Dispatch<React.SetStateAction<number>>;
-  setVisibleEnd: React.Dispatch<React.SetStateAction<number>>;
-  setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-  onAudioTimeUpdate: () => void;
-  onAudioEnded: () => void;
-}
+import { useState, useEffect } from "react";
 
 interface UsePlaybackOptions {
   audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -38,7 +16,7 @@ export function usePlayback({
   initWebAudio,
   duration,
   originalAudio,
-}: UsePlaybackOptions): PlaybackState & PlaybackActions {
+}: UsePlaybackOptions) {
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(() => {

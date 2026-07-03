@@ -15,7 +15,7 @@ export interface PulsePeak {
   bpm: number | null;     // Instantaneous BPM based on previous peak
 }
 
-export interface PulseDetectionResult {
+interface PulseDetectionResult {
   peaks: PulsePeak[];
   averageBpm: number;
   bpmValues: { time: number; bpm: number }[]; // For plotting heart rate trend over time
