@@ -5,6 +5,8 @@ interface BpmTrendChartProps {
   duration: number;
   minBpm: number;
   maxBpm: number;
+  startTime?: number;
+  endTime?: number;
   onSeek?: (time: number) => void;
 }
 
@@ -13,6 +15,8 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
   duration,
   minBpm,
   maxBpm,
+  startTime,
+  endTime,
   onSeek,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -39,12 +43,19 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     const canvas = canvasRef.current;
     if (!canvas || bpmValues.length === 0) return;
 
+    const start = startTime ?? 0;
+    const end = endTime ?? duration;
+    const rangeDuration = Math.max(0.1, end - start);
+    const visibleBpmValues = bpmValues.filter((v) => v.time >= start && v.time <= end);
+
+    if (visibleBpmValues.length === 0) return;
+
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Find the closest point in bpmValues
-    let closestPoint = bpmValues[0];
+    // Find the closest point in visibleBpmValues
+    let closestPoint = visibleBpmValues[0];
     let minDistance = Infinity;
     let closestX = 0;
     let closestY = 0;
@@ -54,8 +65,8 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     const yRange = yMax - yMin;
     const height = 128;
 
-    bpmValues.forEach((val) => {
-      const x = (val.time / duration) * rect.width;
+    visibleBpmValues.forEach((val) => {
+      const x = ((val.time - start) / rangeDuration) * rect.width;
       const y = height - ((val.bpm - yMin) / yRange) * (height - 20) - 10;
       const dist = Math.hypot(x - mouseX, y - mouseY);
 
@@ -107,7 +118,12 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    if (bpmValues.length === 0) {
+    const start = startTime ?? 0;
+    const end = endTime ?? duration;
+    const rangeDuration = Math.max(0.1, end - start);
+    const visibleBpmValues = bpmValues.filter(v => v.time >= start && v.time <= end);
+
+    if (visibleBpmValues.length === 0) {
       // Draw placeholder text
       ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.font = '12px sans-serif';
@@ -146,8 +162,8 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     const numTimeLines = 5;
     for (let i = 1; i < numTimeLines; i++) {
-      const t = (i / numTimeLines) * duration;
-      const x = (t / duration) * width;
+      const t = start + (i / numTimeLines) * rangeDuration;
+      const x = ((t - start) / rangeDuration) * width;
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
@@ -164,8 +180,8 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
     ctx.beginPath();
 
     let first = true;
-    bpmValues.forEach((val) => {
-      const x = (val.time / duration) * width;
+    visibleBpmValues.forEach((val) => {
+      const x = ((val.time - start) / rangeDuration) * width;
       const y = height - ((val.bpm - yMin) / yRange) * (height - 20) - 10;
 
       if (first) {
@@ -182,8 +198,8 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
 
     // Draw dots at each data point
     ctx.fillStyle = '#22d3ee'; // Cyan-400
-    bpmValues.forEach((val) => {
-      const x = (val.time / duration) * width;
+    visibleBpmValues.forEach((val) => {
+      const x = ((val.time - start) / rangeDuration) * width;
       const y = height - ((val.bpm - yMin) / yRange) * (height - 20) - 10;
       
       ctx.beginPath();
@@ -193,7 +209,7 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
 
     // Draw hover highlight if active
     if (hoverPoint) {
-      const hx = (hoverPoint.time / duration) * width;
+      const hx = ((hoverPoint.time - start) / rangeDuration) * width;
       const hy = height - ((hoverPoint.bpm - yMin) / yRange) * (height - 20) - 10;
 
       // Vertical line
@@ -252,7 +268,7 @@ export const BpmTrendChart: React.FC<BpmTrendChartProps> = ({
       ctx.font = '6.5px monospace';
       ctx.fillText(`${hoverPoint.time.toFixed(2)}s`, tx + tooltipW / 2, ty + 18);
     }
-  }, [bpmValues, duration, minBpm, maxBpm, containerWidth, hoverPoint]);
+  }, [bpmValues, duration, minBpm, maxBpm, startTime, endTime, containerWidth, hoverPoint]);
 
   return (
     <div

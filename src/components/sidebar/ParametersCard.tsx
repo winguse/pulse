@@ -30,10 +30,18 @@ function PresetsBar({
     <div className="presets-section">
       <div className="preset-actions-row">
         <select
-          value={selectedPresetKey}
-          onChange={(e) => onLoad(e.target.value)}
+          value={isChanged ? `${selectedPresetKey}_modified` : selectedPresetKey}
+          onChange={(e) => {
+            const val = e.target.value.replace("_modified", "");
+            onLoad(val);
+          }}
           className="preset-select"
         >
+          {isChanged && (
+             <option value={`${selectedPresetKey}_modified`}>
+               {selectedPresetKey}*
+             </option>
+          )}
           {Object.keys(presets).map((key) => (
             <option key={key} value={key}>
               {key}

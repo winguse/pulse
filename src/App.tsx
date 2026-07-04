@@ -342,6 +342,12 @@ function App() {
                 duration={engine.duration}
                 minBpm={engine.pulseParams.minBpm}
                 maxBpm={engine.pulseParams.maxBpm}
+                startTime={
+                  selectionBounds ? selectionBounds[0] : playback.visibleStart
+                }
+                endTime={
+                  selectionBounds ? selectionBounds[1] : playback.visibleEnd
+                }
                 onSeek={playback.handleSeek}
               />
 
