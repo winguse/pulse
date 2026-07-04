@@ -176,9 +176,16 @@ function App() {
   return (
     <div className="app-container">
       {/* Global loading progress bar at the top edge */}
-      {engine.isLoading && (
+      {(engine.isLoading || engine.progress > 0) && (
         <div className="global-progress-bar-container">
-          <div className="global-progress-bar"></div>
+          <div
+            className="global-progress-bar"
+            style={
+              engine.progress > 0
+                ? { width: `${engine.progress}%`, animation: "none" }
+                : undefined
+            }
+          ></div>
         </div>
       )}
 

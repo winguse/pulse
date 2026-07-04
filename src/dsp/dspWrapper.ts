@@ -85,11 +85,12 @@ function notchCoeffs(freq: number, sr: number, q: number): BiquadCoeffs {
 // Main processing — synchronous, pure TypeScript (no WASM)
 // ---------------------------------------------------------------------------
 
-function processAudio(
+async function processAudio(
   inputAudio: Float32Array,
   sampleRate: number,
   params: DSPParams,
-): DSPResult {
+  onProgress?: (progress: number) => void
+): Promise<DSPResult> {
   const len = inputAudio.length;
   const output = new Float32Array(len);
   const envelope = new Float32Array(len);
@@ -110,55 +111,66 @@ function processAudio(
   const gateRelease = Math.exp(-1 / (sampleRate * 0.050)); // 50 ms
   let gateEnv = 0;
 
-  // 3. Filter + noise gate pass
-  for (let i = 0; i < len; i++) {
-    let x = inputAudio[i];
+  // AGC constants
+  const agcAttack     = Math.exp(-1 / (sampleRate * 0.05));
+  const agcDecayCoeff = Math.exp(-1 / (sampleRate * params.agcDecay));
+  let agcEnv = 0;
 
-    x = processBiquad(hpCoeffs, hpState, x);
-    x = processBiquad(lpCoeffs, lpState, x);
-    if (notchC) x = processBiquad(notchC, notchState, x);
-
-    const absX = Math.abs(x);
-    gateEnv = absX > gateEnv
-      ? gateAttack  * gateEnv + (1 - gateAttack)  * absX
-      : gateRelease * gateEnv + (1 - gateRelease) * absX;
-
-    let gain: number;
-    if (gateEnv >= params.noiseThreshold) {
-      gain = 1.0;
-    } else {
-      const ratio    = gateEnv / (params.noiseThreshold + 1e-6);
-      const minGain  = 1 - params.noiseAttenuation;
-      gain = minGain + (1 - minGain) * ratio;
-    }
-
-    output[i] = x * gain;
-  }
-
-  // 4. Optional AGC pass
-  if (params.agcEnabled) {
-    const agcAttack     = Math.exp(-1 / (sampleRate * 0.05));
-    const agcDecayCoeff = Math.exp(-1 / (sampleRate * params.agcDecay));
-    let agcEnv = 0;
-
-    for (let i = 0; i < len; i++) {
-      const x    = output[i];
-      const absX = Math.abs(x);
-
-      agcEnv = absX > agcEnv
-        ? agcAttack     * agcEnv + (1 - agcAttack)     * absX
-        : agcDecayCoeff * agcEnv + (1 - agcDecayCoeff) * absX;
-
-      const targetGain = agcEnv > 1e-4 ? 0.2 / agcEnv : 1.0;
-      output[i] = x * Math.min(targetGain, 25.0);
-    }
-  }
-
-  // 5. Envelope extraction — LPF on |signal| at 8 Hz
+  // Envelope constants
   const envCoeffs = lowpassCoeffs(8.0, sampleRate, 0.707);
   const envState  = makeBiquadState();
-  for (let i = 0; i < len; i++) {
-    envelope[i] = processBiquad(envCoeffs, envState, Math.abs(output[i]));
+
+  // Process in chunks to avoid blocking the main thread and to report progress
+  const CHUNK_SIZE = sampleRate * 2; // ~2 seconds of audio per chunk
+
+  for (let offset = 0; offset < len; offset += CHUNK_SIZE) {
+    const end = Math.min(offset + CHUNK_SIZE, len);
+
+    for (let i = offset; i < end; i++) {
+      let x = inputAudio[i];
+
+      // Filters
+      x = processBiquad(hpCoeffs, hpState, x);
+      x = processBiquad(lpCoeffs, lpState, x);
+      if (notchC) x = processBiquad(notchC, notchState, x);
+
+      // Noise Gate
+      const absX = Math.abs(x);
+      gateEnv = absX > gateEnv
+        ? gateAttack  * gateEnv + (1 - gateAttack)  * absX
+        : gateRelease * gateEnv + (1 - gateRelease) * absX;
+
+      let gain: number;
+      if (gateEnv >= params.noiseThreshold) {
+        gain = 1.0;
+      } else {
+        const ratio    = gateEnv / (params.noiseThreshold + 1e-6);
+        const minGain  = 1 - params.noiseAttenuation;
+        gain = minGain + (1 - minGain) * ratio;
+      }
+      x = x * gain;
+
+      // AGC
+      if (params.agcEnabled) {
+        const absX2 = Math.abs(x);
+        agcEnv = absX2 > agcEnv
+          ? agcAttack     * agcEnv + (1 - agcAttack)     * absX2
+          : agcDecayCoeff * agcEnv + (1 - agcDecayCoeff) * absX2;
+
+        const targetGain = agcEnv > 1e-4 ? 0.2 / agcEnv : 1.0;
+        x = x * Math.min(targetGain, 25.0);
+      }
+
+      output[i] = x;
+
+      // Envelope
+      envelope[i] = processBiquad(envCoeffs, envState, Math.abs(x));
+    }
+
+    if (onProgress) {
+      onProgress(Math.min(100, Math.round((end / len) * 100)));
+      await new Promise((resolve) => setTimeout(resolve, 0)); // Yield to main thread
+    }
   }
 
   return { filteredAudio: output, envelope };
@@ -172,6 +184,7 @@ export async function processAudioWithWasm(
   inputAudio: Float32Array,
   sampleRate: number,
   params: DSPParams,
+  onProgress?: (progress: number) => void
 ): Promise<DSPResult> {
-  return processAudio(inputAudio, sampleRate, params);
+  return processAudio(inputAudio, sampleRate, params, onProgress);
 }

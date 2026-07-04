@@ -41,6 +41,7 @@ export function useAudioEngine() {
     [],
   );
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [yScale, setYScale] = useState<number>(1.0);
@@ -107,10 +108,15 @@ export function useAudioEngine() {
 
     const runDSP = async () => {
       setIsLoading(true);
+      setProgress(0);
       setError(null);
+
+      // Yield to the browser so it can paint the loading progress bar before blocking the main thread
+      await new Promise((resolve) => setTimeout(resolve, 15));
+
       try {
         const { filteredAudio: outAudio, envelope: outEnv } =
-          await processAudioWithWasm(originalAudio, sampleRate, dspParams);
+          await processAudioWithWasm(originalAudio, sampleRate, dspParams, setProgress);
 
         setFilteredAudio(outAudio);
         setEnvelope(outEnv);
@@ -150,6 +156,7 @@ export function useAudioEngine() {
         setError(err.message || "Error executing audio filters.");
       } finally {
         setIsLoading(false);
+        setProgress(0);
       }
     };
 
@@ -220,7 +227,12 @@ export function useAudioEngine() {
 
   const processUploadedFile = useCallback(async (file: File) => {
     setIsLoading(true);
+    setProgress(0);
     setError(null);
+
+    // Yield to the browser so it can paint the loading progress bar
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
     try {
       setFileName(file.name);
       const {
@@ -239,6 +251,7 @@ export function useAudioEngine() {
       setEnvelope(null);
     } finally {
       setIsLoading(false);
+      setProgress(0);
     }
   }, []);
 
@@ -253,6 +266,7 @@ export function useAudioEngine() {
     averageBpm,
     bpmValues,
     isLoading,
+    progress,
     error,
     audioUrl,
     yScale,
